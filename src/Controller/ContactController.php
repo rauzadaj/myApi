@@ -16,14 +16,63 @@ use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 class ContactController extends AbstractController
 {
+    /**
+     * @param MailerInterface $mailer
+     */
     public function __construct(MailerInterface $mailer)
     {
         $this->mailer = $mailer;
     }
+
     /**
      * @Route("/contact", name="contact")
+     * @param Request $request
+     * @return Response
+     * @throws \Symfony\Component\Mailer\Exception\TransportExceptionInterface
      */
     public function index(Request $request): Response
+    {
+        $form = $this->createdForm();
+        $form->handleRequest($request);
+        if ($form->isSubmitted() && $form->isValid()) {
+            // data is an array with "name", "email", and "message" keys
+            $data = $form->getData();
+            $this->sendMail($data);
+        }
+        return $this->render('contact/index.html.twig', [
+            'form' => $form->createView(),
+        ]);
+    }
+
+    /**
+     * @Route("/email")
+     * @param $data
+     * @throws \Symfony\Component\Mailer\Exception\TransportExceptionInterface
+     */
+    public function sendMail($data)
+    {
+        $email = (new TemplatedEmail())
+            ->from($data['email'])
+            ->to('jrauzada@miaoow.me')
+            //->cc('cc@example.com')
+            //->bcc('bcc@example.com')
+            //->replyTo('fabien@example.com')
+            ->priority(Email::PRIORITY_NORMAL)
+            ->subject('Formulaire de contact SchooLand')
+            ->text($data['message'])
+            ->htmlTemplate('emails/contact.html.twig')
+            ->context(['data' => $data]);
+        try {
+            $this->mailer->send($email);
+        } catch (TransportException $exception) {
+            echo $exception->getMessage().PHP_EOL;
+        }
+    }
+
+    /**
+     * @return \Symfony\Component\Form\FormInterface
+     */
+    public function createdForm()
     {
         $defaultData = ['message' => 'Tapez votre message ici'];
         $form = $this->createFormBuilder($defaultData)
@@ -43,41 +92,6 @@ class ContactController extends AbstractController
                 'attr' => ['class'=>'btn btn-lg btn-primary btn-block', 'id' => '']
             ])
             ->getForm();
-
-        $form->handleRequest($request);
-
-        if ($form->isSubmitted() && $form->isValid()) {
-            // data is an array with "name", "email", and "message" keys
-            $data = $form->getData();
-            $this->sendMail($data);
-        }
-
-        return $this->render('contact/index.html.twig', [
-            'form' => $form->createView(),
-        ]);
-    }
-
-    /**
-     * @Route("/email")
-     */
-    public function sendMail($data)
-    {
-
-        $email = (new TemplatedEmail())
-            ->from($data['email'])
-            ->to('jrauzada@miaoow.me')
-            //->cc('cc@example.com')
-            //->bcc('bcc@example.com')
-            //->replyTo('fabien@example.com')
-            ->priority(Email::PRIORITY_NORMAL)
-            ->subject('Formulaire de contact SchooLand')
-            ->text($data['message'])
-            ->htmlTemplate('emails/contact.html.twig')
-            ->context(['data' => $data]);
-        try {
-            $this->mailer->send($email);
-        } catch (TransportException $exception) {
-            echo $exception->getMessage().PHP_EOL;
-        }
+        return $form;
     }
 }
